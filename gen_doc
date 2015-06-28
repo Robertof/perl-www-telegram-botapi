@@ -1,0 +1,76 @@
+#!/usr/bin/env perl
+use strict;
+use subs 'quit';
+use warnings;
+
+my $file = shift || quit "no file specified";
+-f $file || quit "$file does not exist or is not a file";
+eval 'use Pod::Markdown; 1' || quit "no Pod::Markdown";
+
+# Parse the documentation
+my $parser = Local::Pod::Markdown->new (markdown_fragment_format => sub {
+    # remove non-word characters, along with non-hypens and non-spaces
+    s/[^\w\-\s]//gi;
+    # replace spaces with hyphens
+    s/\s/-/g;
+    # return the lowercase version of the string
+    lc;
+});
+open my $outfh, ">", "README.md" || die "can't open README.md for writing: $!";
+$parser->output_fh ($outfh);
+$parser->parse_file ($file);
+
+print "README.md generated.", $/;
+
+sub quit
+{
+    print STDERR "skipping $0: ", shift, $/;
+    exit 0 # we didn't fail
+}
+
+# Apply some fixes to Pod::Markdown
+package Local::Pod::Markdown;
+use strict;
+use warnings;
+BEGIN {
+    # Too lazy to touch @ISA
+    eval 'use parent "Pod::Markdown"';
+}
+
+# Highlight Verbatim blocks.
+sub end_Verbatim
+{
+    my ($self) = @_;
+    my $text = $self->_pop_stack_text;
+    # Find the smallest indentation. (Pod::Markdown::_indent_verbatim)
+    my $indent = ' ' x 4;
+    foreach my $line (split /\n/, $text)
+    {
+        next unless $line =~ /^(\s+)/;
+        $indent = $1 if length ($1) < length ($indent);
+    }
+    # Remove it.
+    $text =~ s/^$indent//mg;
+    $self->_private->{no_escape} = 0;
+    # Add the syntax highlighting block.
+    $self->_save_block (join '', '```perl', $/, $text, $/, '```');
+}
+
+# Normalize heading names, and fix normalization errors
+sub _end_head
+{
+    my ($self, $num) = @_;
+    my $h = '#' x $num;
+    my $text = $self->_pop_stack_text;
+    $self->_private->{search_header} =
+        $text =~ /NAME/   ? 'Title'
+      : $text =~ /AUTHOR/ ? 'Author'
+      : undef;
+    # Normalize the heading name.
+    $text = ucfirst lc $text if lc $text ne $text and $text ne 'AUTOLOAD';
+    # Fix lowercase names that shouldn't be lowercase.
+    $text =~ s/([$@%][^\s]+)/uc $1/e;
+    $self->_save_block (join ' ', $h, $text);
+}
+
+1;
