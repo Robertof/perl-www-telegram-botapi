@@ -1,2 +1,6 @@
+0.02 2015-09-02
+  - DESTROY is not handled by AUTOLOAD anymore.
+  - Now using `Carp::confess` instead of `die` for server-side errors.
+  - The documentation now has more examples.
 0.01 2015-06-28
   - First release.

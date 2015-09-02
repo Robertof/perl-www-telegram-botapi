@@ -4,7 +4,7 @@ use warnings;
 use Carp ();
 use JSON::MaybeXS ();
 
-our $VERSION = "0.01";
+our $VERSION = "0.02";
 
 BEGIN {
     eval "require Mojo::UserAgent; 1" or
@@ -37,6 +37,9 @@ sub new
     bless \%settings, $class
 }
 
+# Fix AUTOLOAD being called when Perl is destroying our class.
+sub DESTROY {}
+
 # Magically provide methods named as the Telegram API ones, such as $o->sendMessage.
 sub AUTOLOAD
 {
@@ -48,7 +51,7 @@ sub AUTOLOAD
 
 sub api_request
 {
-    my ($self, $method) = map { shift } 1 .. 2;
+    my ($self, $method) = splice @_, 0, 2;
     # Detect if the user provided a callback to use for async requests.
     # The only parameter whose order matters is $method. The callback and the request parameters
     # can be put in any order, like this: $o->api_request ($method, sub {}, { a => 1 }) or
@@ -136,7 +139,7 @@ sub api_request
     # Otherwise, if we f****d up... die horribly.
     unless ($is_lwp ? $tx->is_success : $tx->success)
     {
-        die "ERROR: ", ($is_lwp ? $tx->status_line : $tx->error->{message});
+        Carp::confess "ERROR: ", ($is_lwp ? $tx->status_line : $tx->error->{message});
     }
     # Decode and return the JSON.
     $is_lwp ? eval { JSON::MaybeXS::decode_json ($tx->decoded_content) } || undef : $tx->res->json
@@ -234,6 +237,8 @@ B<This requires L<Mojo::UserAgent>, and the method will croak if it isn't found.
 B<NOTE:> I<all> requests will be asynchronous when this option is enabled, and if a method
 is called without a callback then it will croak.
 
+Defaults to C<0>.
+
 =item * C<< force_lwp => 1 >>
 
 Forces the usage of L<LWP::UserAgent> instead of L<Mojo::UserAgent>, even if the latter is
@@ -246,7 +251,16 @@ By default, the module tries to load L<Mojo::UserAgent>, and on failure it uses 
 =head2 AUTOLOAD
 
     $api->getMe;
-    $api->whatever;
+    $api->sendMessage ({
+        chat_id => 123456,
+        text    => 'Hello world!'
+    });
+    # with async => 1 and the IOLoop already started
+    $api->setWebhook ({ url => 'https://example.com/webhook' }, sub {
+        my ($ua, $tx) = @_;
+        die unless $tx->success;
+        say "Webhook set!"
+    });
 
 This module makes use of L<perlsub/"Autoloading">. This means that every current and future method
 of the Telegram Bot API can be used by calling its Perl equivalent, without requiring an update
@@ -274,7 +288,7 @@ This is, by the way, the exact thing the C<AUTOLOAD> method of this module does.
             content  => 'secret stuff'
         }
     });
-    # with async => 1, and the IOLoop already started
+    # with async => 1 and the IOLoop already started
     $api->api_request ('getMe', sub {
         my ($ua, $tx) = @_;
         die unless $tx->success;

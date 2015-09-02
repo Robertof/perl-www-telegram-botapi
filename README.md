@@ -78,6 +78,8 @@ Creates a new [WWW::Telegram::BotAPI](https://metacpan.org/pod/WWW::Telegram::Bo
     **NOTE:** _all_ requests will be asynchronous when this option is enabled, and if a method
     is called without a callback then it will croak.
 
+    Defaults to `0`.
+
 - `force_lwp => 1`
 
     Forces the usage of [LWP::UserAgent](https://metacpan.org/pod/LWP::UserAgent) instead of [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent), even if the latter is
@@ -89,7 +91,16 @@ Creates a new [WWW::Telegram::BotAPI](https://metacpan.org/pod/WWW::Telegram::Bo
 
 ```perl
 $api->getMe;
-$api->whatever;
+$api->sendMessage ({
+    chat_id => 123456,
+    text    => 'Hello world!'
+});
+# with async => 1 and the IOLoop already started
+$api->setWebhook ({ url => 'https://example.com/webhook' }, sub {
+    my ($ua, $tx) = @_;
+    die unless $tx->success;
+    say "Webhook set!"
+});
 ```
 
 This module makes use of ["Autoloading" in perlsub](https://metacpan.org/pod/perlsub#Autoloading). This means that every current and future method
@@ -121,7 +132,7 @@ $api->api_request ('sendDocument', {
         content  => 'secret stuff'
     }
 });
-# with async => 1, and the IOLoop already started
+# with async => 1 and the IOLoop already started
 $api->api_request ('getMe', sub {
     my ($ua, $tx) = @_;
     die unless $tx->success;
