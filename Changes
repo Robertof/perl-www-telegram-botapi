@@ -1,3 +1,12 @@
+0.03 2015-10-31
+  - Happy Halloween!
+  - Add new debugging mode, enabled by setting the `TELEGRAM_BOTAPI_DEBUG` environment variable
+    to a true value.
+  - `api_request` now dies when, in the response, `ok` is missing or set to a false value.
+    This means that `undef` can no longer be returned.
+    Consequently, error messages returned from Telegram - when available - are now shown when
+    dying (instead of showing just the HTTP response code).
+  - Several improvements to the documentation and the code.
 0.02 2015-09-02
   - DESTROY is not handled by AUTOLOAD anymore.
   - Now using `Carp::confess` instead of `die` for server-side errors.

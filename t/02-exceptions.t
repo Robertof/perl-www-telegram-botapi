@@ -24,10 +24,11 @@ like (
 );
 
 SKIP: {
-    skip 'Test::MockObject required to test Mojo::UserAgent based features', 2
+    skip 'Test::MockObject required to test Mojo::UserAgent features', 2
         unless Test::MockObject->can ('new');
     my $mojo_mock = Test::MockObject->new->set_always ('post',
-        Test::MockObject->new->set_false ('success')->set_always ('error', { message => ':<' }));
+        Test::MockObject->new->set_false ('success')->set_always ('error', { message => ':<' })
+            ->set_always ('res', Test::MockObject->new->set_false ('json')));
     $mojo_mock->set_isa ('Mojo::UserAgent');
     my $inst = WWW::Telegram::BotAPI->new (token => 'whatever');
     $inst->{_agent} = $mojo_mock;
@@ -39,7 +40,7 @@ SKIP: {
     $inst->{async} = 1;
     like (
         exception { $inst->something },
-        qr/missing CODE reference/,
+        qr/a CODE reference.*required when/,
         'croak when async is enabled and a callback is missing'
     );
 }

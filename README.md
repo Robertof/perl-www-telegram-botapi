@@ -165,7 +165,7 @@ File uploads are specified using an hash reference containing the following mapp
 
 - `content => 'Being a file is cool :-)'`
 
-    The content of the file to send. When this is used, `file` must not be specified.
+    The content of the file to send. When using this, `file` must not be specified.
 
 - `AnyCustom => 'Header'`
 
@@ -173,6 +173,16 @@ File uploads are specified using an hash reference containing the following mapp
 
 Upload of multiple files is not supported. See ["tx" in Mojo::UserAgent::Transactor](https://metacpan.org/pod/Mojo::UserAgent::Transactor#tx) for more
 information about file uploads.
+
+To resend files, you don't need to perform a file upload at all. Just pass the ID as a normal
+parameter.
+
+```perl
+$api->sendPhoto ({
+    chat_id => 123456,
+    photo   => $photo_id
+});
+```
 
 When asynchronous requests are enabled, a callback has to be specified as an argument.
 The arguments passed to the callback are, in order, the user-agent (a [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent) object)
@@ -202,16 +212,34 @@ Returns the instance of the user-agent used by the module. You can determine if 
 my $is_lwp = $user_agent->isa ('LWP::UserAgent');
 ```
 
+# Debugging
+
+To perform some cool troubleshooting, you can set the environment variable `TELEGRAM_BOTAPI_DEBUG`
+to a true value:
+
+```perl
+TELEGRAM_BOTAPI_DEBUG=1 perl script.pl
+```
+
+This dumps the content of each request and response in a friendly, human-readable way.
+It also prints the version and the configuration of the module. As a security measure, the bot's
+token is automatically removed from the output of the dump.
+
+**WARNING:** using this option along with an old Mojolicious version (< 6.22) leads to a warning,
+and forces [LWP::UserAgent](https://metacpan.org/pod/LWP::UserAgent) instead of [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent). This is because [Mojo::JSON](https://metacpan.org/pod/Mojo::JSON)
+used incompatible boolean values up to version 6.21, which led to an horrible death of
+[JSON::MaybeXS](https://metacpan.org/pod/JSON::MaybeXS) when serializing the data.
+
 # Caveats
 
-No error handling is performed when using asynchronous requests.
-
-If the response is not a valid JSON string, `undef` is returned.
+When asynchronous mode is enabled, no error handling is performed. You have to do it by
+yourself as shown in the ["SYNOPSIS"](#synopsis).
 
 # See also
 
 [LWP::UserAgent](https://metacpan.org/pod/LWP::UserAgent), [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent),
-[https://core.telegram.org/bots/api](https://core.telegram.org/bots/api), [https://core.telegram.org/bots](https://core.telegram.org/bots)
+[https://core.telegram.org/bots/api](https://core.telegram.org/bots/api), [https://core.telegram.org/bots](https://core.telegram.org/bots),
+[example implementation of a Telegram bot](https://git.io/vlOK0)
 
 # Author
 

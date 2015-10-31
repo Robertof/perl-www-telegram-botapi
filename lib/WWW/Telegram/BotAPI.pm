@@ -1,15 +1,28 @@
 package WWW::Telegram::BotAPI;
 use strict;
 use warnings;
+use warnings::register;
 use Carp ();
 use JSON::MaybeXS ();
+use constant DEBUG => $ENV{TELEGRAM_BOTAPI_DEBUG} || 0;
 
-our $VERSION = "0.02";
+our $VERSION = "0.03";
+my $json; # for debugging purposes, only populated when DEBUG = 1
 
 BEGIN {
     eval "require Mojo::UserAgent; 1" or
         eval "require LWP::UserAgent; 1" or
         die "Either Mojo::UserAgent or LWP::UserAgent is required.\n$@";
+    $json = JSON::MaybeXS->new (pretty => 1, utf8 => 1) if DEBUG;
+}
+
+# Debugging functions (only used when DEBUG is true)
+sub _dprintf { printf "-T- $_[0]\n", splice @_, 1 }
+sub _ddump
+{
+    my ($varname, $to_dump) = splice @_, -2;
+    _dprintf @_ if @_;
+    printf "%s = %s", $varname, $json->encode ($to_dump);
 }
 
 # %settings = (
@@ -23,21 +36,34 @@ sub new
     my ($class, %settings) = @_;
     exists $settings{token}
         or Carp::croak "ERROR: missing 'token' from \%settings.";
+    # When DEBUG is enabled, and Mojo::UserAgent is used, Mojolicious must be at
+    # least version 6.22 (https://github.com/kraih/mojo/blob/v6.22/Changes). This is because
+    # Mojo::JSON used incompatible JSON boolean constants which led JSON::MaybeXS to crash
+    # with a mysterious error message. To prevent this, we force LWP in this case.
+    if (DEBUG && Mojo::JSON->can ("true") && ref Mojo::JSON->true ne "JSON::PP::Boolean")
+    {
+        warnings::warnif (
+            "WARNING: Enabling DEBUG with Mojolicious versions < 6.22 won't work. Forcing " .
+            "LWP::UserAgent. (update Mojolicious or disable DEBUG to fix)"
+        );
+        ++$settings{force_lwp};
+    }
     # Ensure that LWP is loaded if "force_lwp" is specified.
     $settings{force_lwp}
         and require LWP::UserAgent;
+    # Instantiate the correct user-agent. This automatically detects whether Mojo::UserAgent is
+    # available or not.
     $settings{_agent} = ($settings{force_lwp} or !Mojo::UserAgent->can ("new")) ?
         LWP::UserAgent->new : Mojo::UserAgent->new;
-    exists $settings{async}
-        or $settings{async} = 0;
-    $settings{async} and $settings{_agent}->isa ("LWP::UserAgent")
+    ($settings{async}  ||= 0) and $settings{_agent}->isa ("LWP::UserAgent")
         and Carp::croak "ERROR: Mojo::UserAgent is required to use 'async'.";
-    exists $settings{api_url}
-        or $settings{api_url} = "https://api.telegram.org/bot%s/%s";
+    $settings{api_url} ||= "https://api.telegram.org/bot%s/%s";
+    DEBUG && _dprintf "WWW::Telegram::BotAPI initialized (v%s), using agent %s %ssynchronously.",
+        $VERSION, ref $settings{_agent}, $settings{async} ? "a" : "";
     bless \%settings, $class
 }
 
-# Fix AUTOLOAD being called when Perl is destroying our class.
+# Don't let old Perl versions call AUTOLOAD when DESTROYing our class.
 sub DESTROY {}
 
 # Magically provide methods named as the Telegram API ones, such as $o->sendMessage.
@@ -49,6 +75,7 @@ sub AUTOLOAD
     $self->api_request ($method, @_);
 }
 
+# The real stuff!
 sub api_request
 {
     my ($self, $method) = splice @_, 0, 2;
@@ -70,7 +97,8 @@ sub api_request
     }
     # Croak if we don't have a callback, but "async" is true.
     $self->{async} and !defined $async_cb
-        and Carp::croak "ERROR: missing CODE reference to call on non-blocking request.";
+        and Carp::croak "ERROR: a CODE reference (callback) is required when ",
+                        "asynchronous requests are enabled.";
     # Prepare the request method parameters.
     my @request;
     my $is_lwp = $self->_is_lwp;
@@ -120,34 +148,53 @@ sub api_request
                                    Content_Type => "form-data"
                 or  push @request, $postdata;
         }
-        else
+        else # Mojo::UserAgent, easy peasy
         {
-            # Mojo::UserAgent stuff
             push @request, form => $postdata;
         }
     }
     # Protip (also mentioned in the doc): if you are using non-blocking requests with
     # Mojo::UserAgent, remember to start the event loop with Mojo::IOLoop->start.
-    # This is unnecessary when you are using this module with Mojolicious.
+    # This is superfluous when using this module in a Mojolicious app.
     push @request, $async_cb if $self->{async};
     # Stop here if this is a test - specified using the "_dry_run" flag.
     return 1 if $self->{_dry_run};
+    DEBUG and _ddump "BEGIN REQUEST to /%s :: %s", $method, scalar localtime,
+        PAYLOAD => _hide_token ($self, [ @request ]);
     # Perform the request.
     my $tx = $self->agent->post (@request);
+    DEBUG and $self->{async} and
+        _dprintf "END REQUEST to /%s (async) :: %s", $method, scalar localtime;
     # We're done if the request is asynchronous.
     return $tx if $self->{async};
-    # Otherwise, if we f****d up... die horribly.
-    unless ($is_lwp ? $tx->is_success : $tx->success)
+    # Pre-decode the response to provide, if possible, an error message.
+    my $response = $is_lwp ?
+        eval { JSON::MaybeXS::decode_json ($tx->decoded_content) } || undef :
+        $tx->res->json;
+    # Dump it in debug mode.
+    DEBUG and _ddump RESPONSE => $response;
+    # If we (or the server) f****d up... die horribly.
+    unless (($is_lwp ? $tx->is_success : $tx->success) && $response && $response->{ok})
     {
-        Carp::confess "ERROR: ", ($is_lwp ? $tx->status_line : $tx->error->{message});
+        # Print either the error returned by the API or the HTTP status line.
+        Carp::confess "ERROR: ", $response && $response->{description} ?
+            $response->{description} :
+            $is_lwp ? $tx->status_line : $tx->error->{message}
     }
-    # Decode and return the JSON.
-    $is_lwp ? eval { JSON::MaybeXS::decode_json ($tx->decoded_content) } || undef : $tx->res->json
+    DEBUG and _dprintf "END REQUEST to /%s :: %s", $method, scalar localtime;
+    $response
 }
 
 sub agent
 {
     shift->{_agent}
+}
+
+# Hides the bot's token from the first element of an array.
+sub _hide_token
+{
+    $_[1]->[0] =~ s/\Q$_[0]->{token}\E/XXXXXXXXX/g;
+    $_[1]
 }
 
 sub _is_lwp
@@ -322,7 +369,7 @@ Particularly recommended when C<content> is specified.
 
 =item * C<< content => 'Being a file is cool :-)' >>
 
-The content of the file to send. When this is used, C<file> must not be specified.
+The content of the file to send. When using this, C<file> must not be specified.
 
 =item * C<< AnyCustom => 'Header' >>
 
@@ -332,6 +379,14 @@ Custom headers can be specified as hash mappings.
 
 Upload of multiple files is not supported. See L<Mojo::UserAgent::Transactor/"tx"> for more
 information about file uploads.
+
+To resend files, you don't need to perform a file upload at all. Just pass the ID as a normal
+parameter.
+
+    $api->sendPhoto ({
+        chat_id => 123456,
+        photo   => $photo_id
+    });
 
 When asynchronous requests are enabled, a callback has to be specified as an argument.
 The arguments passed to the callback are, in order, the user-agent (a L<Mojo::UserAgent> object)
@@ -355,16 +410,32 @@ L<LWP::UserAgent> or L<Mojo::UserAgent> by using C<isa>:
 
     my $is_lwp = $user_agent->isa ('LWP::UserAgent');
 
+=head1 DEBUGGING
+
+To perform some cool troubleshooting, you can set the environment variable C<TELEGRAM_BOTAPI_DEBUG>
+to a true value:
+
+    TELEGRAM_BOTAPI_DEBUG=1 perl script.pl
+
+This dumps the content of each request and response in a friendly, human-readable way.
+It also prints the version and the configuration of the module. As a security measure, the bot's
+token is automatically removed from the output of the dump.
+
+B<WARNING:> using this option along with an old Mojolicious version (< 6.22) leads to a warning,
+and forces L<LWP::UserAgent> instead of L<Mojo::UserAgent>. This is because L<Mojo::JSON>
+used incompatible boolean values up to version 6.21, which led to an horrible death of
+L<JSON::MaybeXS> when serializing the data.
+
 =head1 CAVEATS
 
-No error handling is performed when using asynchronous requests.
-
-If the response is not a valid JSON string, C<undef> is returned.
+When asynchronous mode is enabled, no error handling is performed. You have to do it by
+yourself as shown in the L</"SYNOPSIS">.
 
 =head1 SEE ALSO
 
 L<LWP::UserAgent>, L<Mojo::UserAgent>,
-L<https://core.telegram.org/bots/api>, L<https://core.telegram.org/bots>
+L<https://core.telegram.org/bots/api>, L<https://core.telegram.org/bots>,
+L<example implementation of a Telegram bot|https://git.io/vlOK0>
 
 =head1 AUTHOR
 

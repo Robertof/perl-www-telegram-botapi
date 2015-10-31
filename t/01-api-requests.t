@@ -12,15 +12,13 @@ my @tests = (
     {
         agent => \&lwp_mock,
         resp  => {
-            result => 'wow',
-            ok     => JSON::MaybeXS::JSON->true
+            result => 'wow'
         },
         method => 'getWow'
     },
     {
         agent => \&lwp_mock,
         resp  => {
-            ok     => JSON::MaybeXS::JSON->true,
             result => {
                 wow_level => 9001
             }
@@ -31,7 +29,6 @@ my @tests = (
     {
         agent => \&lwp_mock,
         resp  => {
-            ok     => JSON::MaybeXS::JSON->true,
             result => {
                 wow_uploaded => JSON::MaybeXS::JSON->true
             }
@@ -139,7 +136,9 @@ plan tests => 5 * @tests + 2; # 2 more tests for the async ones (TODO: automatiz
 # Time to start testing!
 foreach my $test (@tests)
 {
-    # Create the agent first.
+    # WWW::Telegram::BotAPI now checks if 'ok' exists and is true.
+    ++$test->{resp}{ok};
+    # Create the agent.
     my ($mock_agent, $mock_response, @call_order) = $test->{agent}->($test->{resp});
     # Then our BotAPI instance.
     my $obj = WWW::Telegram::BotAPI->new (
@@ -173,6 +172,7 @@ foreach my $test (@tests)
             ]),
             "arguments of '$name' for '$method' are as expected";
     };
+    note ("running tests for $test->{method}");
     # Handle asynchronous requests.
     if ($test->{async})
     {
@@ -197,7 +197,7 @@ sub lwp_mock
         'decoded_content', JSON::MaybeXS::encode_json ($response));
     my $mock_agent = Test::MockObject->new->set_always ('post', $mock_response);
     $mock_agent->set_isa ('LWP::UserAgent');
-    ($mock_agent, $mock_response, 'is_success', 'decoded_content')
+    ($mock_agent, $mock_response, 'decoded_content', 'is_success')
 }
 
 sub mojo_mock
@@ -208,16 +208,17 @@ sub mojo_mock
     my $mock_agent = Test::MockObject->new->mock ('post', sub {
         if (ref (my $cb = pop) eq 'CODE') # Async request
         {
+            my $response = $mock_response->res->json;
             # Fake the 'success' call when async is used - WWW::Telegram::BotAPI does not
             # verify if the request succeeded when async is true.
             $mock_response->success;
             # Call the callback (no pun intended) with the response.
-            $cb->($mock_response->res->json);
+            $cb->($response);
             return 'ASYNC IS COOL';
         }
         # Otherwise just return the object.
         $mock_response
     });
     $mock_agent->set_isa ('Mojo::UserAgent');
-    ($mock_agent, $mock_response, 'success', 'res')
+    ($mock_agent, $mock_response, 'res', 'success')
 }
