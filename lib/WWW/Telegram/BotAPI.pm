@@ -309,9 +309,9 @@ By default, the module tries to load L<Mojo::UserAgent>, and on failure it uses 
         say "Webhook set!"
     });
 
-This module makes use of L<perlsub/"Autoloading">. This means that every current and future method
-of the Telegram Bot API can be used by calling its Perl equivalent, without requiring an update
-of the module.
+This module makes use of L<perlsub/"Autoloading">. This means that B<every current and future
+method of the Telegram Bot API can be used by calling its Perl equivalent>, without requiring an
+update of the module.
 
 If you'd like to avoid using C<AUTOLOAD>, then you may simply call the L</"api_request"> method
 specifying the method name as the first argument.
@@ -349,9 +349,16 @@ Once the request is completed, the response is decoded using L<JSON::MaybeXS> an
 returned. If L<Mojo::UserAgent> is used as the user-agent, then the response is decoded
 automatically using L<Mojo::JSON>.
 
+If the request is not successful or the server returns a false value for C<ok>, then this method
+dies with the first available error message (either the error description or the status line).
+You can make this method non-fatal using C<eval>:
+
+    my $response = eval { $api->api_request ($method, $args) }
+        or warn "Request failed with error '$@', but I'm still alive!";
+
 Parameters can be specified using an hash reference.
 
-File uploads are specified using an hash reference containing the following mappings:
+File uploads can be specified using an hash reference containing the following mappings:
 
 =over 4
 
