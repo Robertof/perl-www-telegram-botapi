@@ -176,10 +176,12 @@ sub api_request
     # If we (or the server) f****d up... die horribly.
     unless (($is_lwp ? $tx->is_success : $tx->success) && $response && $response->{ok})
     {
+        $response ||= {};
         # Print either the error returned by the API or the HTTP status line.
-        Carp::confess "ERROR: ", $response && $response->{description} ?
-            $response->{description} :
-            $is_lwp ? $tx->status_line : $tx->error->{message}
+        Carp::confess
+            "ERROR: ", ($response->{error_code} ? "code " . $response->{error_code} . ": " : ""),
+            $response->{description} ? $response->{description} : $is_lwp ?
+                $tx->status_line : ($tx->error || {})->{message} || "something went wrong!"
     }
     DEBUG and _dprintf "END REQUEST to /%s :: %s", $method, scalar localtime;
     $response
