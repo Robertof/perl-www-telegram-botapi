@@ -90,15 +90,12 @@ sub api_request
         # Poor man's switch block
         for (ref $arg)
         {
-            ($async_cb = $arg, last) if $_ eq "CODE";
+            # Ensure that we don't get async callbacks when we aren't in async mode.
+            ($async_cb = $arg, last) if $_ eq "CODE" and $self->{async};
             ($postdata = $arg, last) if $_ eq "HASH";
         }
         last if defined $async_cb and defined $postdata;
     }
-    # Croak if we don't have a callback, but "async" is true.
-    $self->{async} and !defined $async_cb
-        and Carp::croak "ERROR: a CODE reference (callback) is required when ",
-                        "asynchronous requests are enabled.";
     # Prepare the request method parameters.
     my @request;
     my $is_lwp = $self->_is_lwp;
@@ -156,17 +153,17 @@ sub api_request
     # Protip (also mentioned in the doc): if you are using non-blocking requests with
     # Mojo::UserAgent, remember to start the event loop with Mojo::IOLoop->start.
     # This is superfluous when using this module in a Mojolicious app.
-    push @request, $async_cb if $self->{async};
+    push @request, $async_cb if $async_cb;
     # Stop here if this is a test - specified using the "_dry_run" flag.
     return 1 if $self->{_dry_run};
     DEBUG and _ddump "BEGIN REQUEST to /%s :: %s", $method, scalar localtime,
         PAYLOAD => _hide_token ($self, [ @request ]);
     # Perform the request.
     my $tx = $self->agent->post (@request);
-    DEBUG and $self->{async} and
+    DEBUG and $async_cb and
         _dprintf "END REQUEST to /%s (async) :: %s", $method, scalar localtime;
     # We're done if the request is asynchronous.
-    return $tx if $self->{async};
+    return $tx if $async_cb;
     # Pre-decode the response to provide, if possible, an error message.
     my $response = $is_lwp ?
         eval { JSON::MaybeXS::decode_json ($tx->decoded_content) } || undef :
@@ -283,9 +280,6 @@ Enables asynchronous requests.
 
 B<This requires L<Mojo::UserAgent>, and the method will croak if it isn't found.>
 
-B<NOTE:> I<all> requests will be asynchronous when this option is enabled, and if a method
-is called without a callback then it will croak.
-
 Defaults to C<0>.
 
 =item * C<< force_lwp => 1 >>
@@ -397,7 +391,7 @@ parameter.
         photo   => $photo_id
     });
 
-When asynchronous requests are enabled, a callback has to be specified as an argument.
+When asynchronous requests are enabled, a callback can be specified as an argument.
 The arguments passed to the callback are, in order, the user-agent (a L<Mojo::UserAgent> object)
 and the response (a L<Mojo::Transaction::HTTP> object). More information can be found in the
 documentation of L<Mojo::UserAgent> and L<Mojo::Transaction::HTTP>.
