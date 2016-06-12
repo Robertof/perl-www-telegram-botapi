@@ -184,6 +184,17 @@ sub api_request
     $response
 }
 
+sub parse_error
+{
+    my $r = { type => "unknown", msg => $_[1] || $@ };
+    return $r unless $r->{msg} =~ /ERROR: (?:code (?<code>[0-9]+): )?(?<msg>.+?)(?:\s*at .+)?$/m;
+    # If the error message has a code, then it comes from the BotAPI. Otherwise, it's our agent
+    # telling us something went wrong.
+    $r->{type} = exists $+{code} ? "api" : "agent" if $+{msg} ne "something went wrong!";
+    # Join our response with the matched groups, then return.
+    +{ %$r, %+ }
+}
+
 sub agent
 {
     shift->{_agent}
@@ -352,7 +363,9 @@ You can make this method non-fatal using C<eval>:
     my $response = eval { $api->api_request ($method, $args) }
         or warn "Request failed with error '$@', but I'm still alive!";
 
-Parameters can be specified using an hash reference.
+Further processing of error messages can be obtained using L</"parse_error">.
+
+Request parameters can be specified using an hash reference.
 
 File uploads can be specified using an hash reference containing the following mappings:
 
@@ -403,6 +416,47 @@ The order of the arguments, except of the first one, does not matter:
 
     $api->api_request ('sendMessage', $parameters, $callback);
     $api->api_request ('sendMessage', $callback, $parameters); # same thing!
+
+=head2 parse_error
+
+    unless (eval { $api->doSomething(...) }) {
+        my $error = $api->parse_error;
+        die "Unknown error: $error->{msg}" if $error->{type} eq "unknown";
+        # Handle error gracefully using "type", "msg" and "code" (optional)
+    }
+    # Or, use it with a custom error message.
+    my $error = $api->parse_error ($message);
+
+When sandboxing calls to L<WWW::Telegram::BotAPI> methods using C<eval>, it is useful to parse
+error messages using this method.
+
+This method accepts an error message as its first argument, otherwise C<$@> is used.
+
+An hash reference containing the following elements is returned:
+
+=over 4
+
+=item * C<< type => unknown|agent|api >>
+
+The source of the error.
+
+C<api> specifies an error originating from Telegram's BotAPI. When C<type> is C<api>, the key
+C<code> is guaranteed to exist.
+
+C<agent> specifies an error originating from this module's user-agent. This may indicate a network
+issue, a non-200 HTTP response code or any error not related to the API.
+
+C<unknown> specifies an error with no known source.
+
+=item * C<< msg => ... >>
+
+The error message.
+
+=item * C<< code => ... >>
+
+The error code. B<This key only exists when C<type> is C<api>>.
+
+=back
 
 =head2 agent
 
