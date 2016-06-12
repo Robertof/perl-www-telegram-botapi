@@ -9,7 +9,7 @@ BEGIN {
     eval 'use Test::MockObject';
 }
 
-plan tests => 4;
+plan tests => 3;
 
 like (
     exception { WWW::Telegram::BotAPI->new },
@@ -24,7 +24,7 @@ like (
 );
 
 SKIP: {
-    skip 'Test::MockObject required to test Mojo::UserAgent features', 2
+    skip 'Test::MockObject required to test Mojo::UserAgent features', 1
         unless Test::MockObject->can ('new');
     my $mojo_mock = Test::MockObject->new->set_always ('post',
         Test::MockObject->new->set_false ('success')->set_always ('error', { message => ':<' })
@@ -36,11 +36,5 @@ SKIP: {
         exception { $inst->something },
         qr/ERROR: :</,
         'errors are reported correctly'
-    );
-    $inst->{async} = 1;
-    like (
-        exception { $inst->something },
-        qr/a CODE reference.*required when/,
-        'croak when async is enabled and a callback is missing'
     );
 }
