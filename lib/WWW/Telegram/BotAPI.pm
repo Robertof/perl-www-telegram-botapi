@@ -7,7 +7,7 @@ use JSON::MaybeXS ();
 use constant DEBUG => $ENV{TELEGRAM_BOTAPI_DEBUG} || 0;
 
 our $VERSION = "0.03";
-my $json; # for debugging purposes, only populated when DEBUG = 1
+my $json; # for debugging purposes, only defined when DEBUG = 1
 
 BEGIN {
     eval "require Mojo::UserAgent; 1" or
@@ -85,7 +85,7 @@ sub api_request
     # $o->api_request ($method, { a => 1 }, sub {}), or even
     # $o->api_request ($method, "LOL", "DONGS", sub {}, { a => 1 }).
     my ($postdata, $async_cb);
-    foreach my $arg (@_)
+    for my $arg (@_)
     {
         # Poor man's switch block
         for (ref $arg)
@@ -99,65 +99,83 @@ sub api_request
     # Prepare the request method parameters.
     my @request;
     my $is_lwp = $self->_is_lwp;
-    # Push the request URI. (at least, this is the same in LWP and Mojo)
+    # Push the request URI (this is the same in LWP and Mojo)
     push @request, sprintf ($self->{api_url}, $self->{token}, $method);
     if (defined $postdata)
     {
-        # Determine if we are going to perform a file upload, and if so, do some magic. (LWP only)
-        if ($is_lwp)
+        # POST arguments which are array/hash references need to be handled as follows:
+        # - if no file upload exists, use application/json and encode everything with JSON::MaybeXS
+        #   or let Mojo::UserAgent handle everything, when available.
+        # - whenever a file upload exists, the MIME type is switched to multipart/form-data.
+        #   Other refs which are not file uploads are then encoded with JSON::MaybeXS.
+        my @fixable_keys; # This array holds keys found before file uploads which have to be fixed.
+        my $has_file_upload;
+        # Traverse the post arguments.
+        for my $k (keys %$postdata)
         {
-            # Traverse the post arguments.
-            my $has_file_upload = 0;
-            foreach my $k (keys %$postdata)
+            next unless my $ref = ref $postdata->{$k};
+            # Process file uploads.
+            if ($ref eq "HASH" and
+                (exists $postdata->{$k}{file} or exists $postdata->{$k}{content}))
             {
-                if (ref $postdata->{$k} eq "HASH") # there's our file upload
-                {
-                    # The structure of the hash must be either this:
-                    # { content => 'file content' }
-                    # Or this:
-                    # { file => 'path to file' }
-                    # With an optional key "filename" that specifies the... filename, and
-                    # optional headers to be merged into the multipart/form-data stuff.
-                    # See https://metacpan.org/pod/Mojo::UserAgent::Transactor#tx
-                    ++$has_file_upload;
-                    # HTTP::Request::Common uses this syntax instead:
-                    # [ $file, $filename, SomeHeader => 'bla bla', Content => 'fileContent' ]
-                    # See p3rl.org/HTTP::Request::Common#POST-url-Header-Value-...-Content-content
-                    my $new_val = [];
-                    # Push and remove the keys 'file' and 'filename' (if defined) to $new_val.
-                    push @$new_val, delete $postdata->{$k}{file},
-                                    delete $postdata->{$k}{filename};
-                    # Push 'Content' (note the uppercase 'C')
-                    exists $postdata->{$k}{content}
-                        and push @$new_val, Content => delete $postdata->{$k}{content};
-                    # Push the other headers.
-                    push @$new_val, %{$postdata->{$k}};
-                    # Finalize the changes.
-                    $postdata->{$k} = $new_val;
-                }
-                elsif (ref $postdata->{$k} eq "ARRAY")
-                {
-                    Carp::croak "ERROR: the upload of multiple files w/LWP is not supported yet.";
-                }
+                # WARNING: using file uploads implies switching to the MIME type
+                # multipart/form-data, which needs a JSON stringification for every complex object.
+                ++$has_file_upload;
+                # No particular treatment is needed for file uploads when using Mojo.
+                next unless $is_lwp;
+                # The structure of the hash must be:
+                # { content => 'file content' } or { file => 'path to file' }
+                # With an optional key "filename" and optional headers to be merged into the
+                # multipart/form-data stuff.
+                # See https://metacpan.org/pod/Mojo::UserAgent::Transactor#tx
+                # HTTP::Request::Common uses this syntax instead:
+                # [ $file, $filename, SomeHeader => 'bla bla', Content => 'fileContent' ]
+                # See p3rl.org/HTTP::Request::Common#POST-url-Header-Value-...-Content-content
+                my $new_val = [];
+                # Push and remove the keys 'file' and 'filename' (if defined) to $new_val.
+                push @$new_val, delete $postdata->{$k}{file},
+                                delete $postdata->{$k}{filename};
+                # Push 'Content' (note the uppercase 'C')
+                exists $postdata->{$k}{content}
+                    and push @$new_val, Content => delete $postdata->{$k}{content};
+                # Push the other headers.
+                push @$new_val, %{$postdata->{$k}};
+                # Finalize the changes.
+                $postdata->{$k} = $new_val;
             }
-            $has_file_upload
+            else
+            {
+                $postdata->{$k} = JSON::MaybeXS::encode_json $postdata->{$k}, next
+                    if $has_file_upload;
+                push @fixable_keys, $k;
+            }
+        }
+        if ($has_file_upload)
+        {
+            # Fix keys found before the file upload.
+            $postdata->{$_} = JSON::MaybeXS::encode_json $postdata->{$_} for @fixable_keys;
+            $is_lwp
                 and push @request, Content      => $postdata,
                                    Content_Type => "form-data"
-                or  push @request, $postdata;
+                or  push @request, form         => $postdata;
         }
-        else # Mojo::UserAgent, easy peasy
+        else
         {
-            push @request, form => $postdata;
+            $is_lwp
+                and push @request, DEBUG ? (DBG => $postdata) : (),
+                                   Content      => JSON::MaybeXS::encode_json $postdata,
+                                   Content_Type => "application/json"
+                or  push @request, json         => $postdata;
         }
     }
     # Protip (also mentioned in the doc): if you are using non-blocking requests with
     # Mojo::UserAgent, remember to start the event loop with Mojo::IOLoop->start.
     # This is superfluous when using this module in a Mojolicious app.
     push @request, $async_cb if $async_cb;
-    # Stop here if this is a test - specified using the "_dry_run" flag.
+    # Stop here if this is a test - specified using the (internal) "_dry_run" flag.
     return 1 if $self->{_dry_run};
     DEBUG and _ddump "BEGIN REQUEST to /%s :: %s", $method, scalar localtime,
-        PAYLOAD => _hide_token ($self, [ @request ]);
+        PAYLOAD => _fix_request_args ($self, [ @request ]);
     # Perform the request.
     my $tx = $self->agent->post (@request);
     DEBUG and $async_cb and
@@ -200,11 +218,22 @@ sub agent
     shift->{_agent}
 }
 
-# Hides the bot's token from the first element of an array.
-sub _hide_token
+# Hides the bot's token from the request arguments and improves debugging output.
+sub _fix_request_args
 {
-    $_[1]->[0] =~ s/\Q$_[0]->{token}\E/XXXXXXXXX/g;
-    $_[1]
+    my ($self, $args) = @_;
+    $args->[0] =~ s/\Q$self->{token}\E/XXXXXXXXX/g;
+    # Note for the careful reader: you may remember that the position of Perl's hash keys is
+    # undeterminate - that is, an hash has no particular order. This is true, however we are
+    # dealing with an array which has a fixed order, so no particular problem arises here.
+    if (@$args > 1 and $args->[1] eq "DBG")
+    {
+        my (undef, $data) = splice @$args, 1, 2;
+        # In the debug output, substitute the JSON-encoded data (which is not human readable) with
+        # the raw POST arguments.
+        $args->[2] = $data;
+    }
+    $args
 }
 
 sub _is_lwp
@@ -228,26 +257,49 @@ WWW::Telegram::BotAPI - Perl implementation of the Telegram Bot API
     );
     # The API methods die when an error occurs.
     say $api->getMe->{result}{username};
+    # ... but error handling is available as well.
+    my $result = eval { $api->getMe }
+        or die 'Got error message: ', $api->parse_error->{msg};
     # Uploading files is easier than ever.
     $api->sendPhoto ({
         chat_id => 123456,
         photo   => {
-            file => "/home/me/cool_pic.png"
+            file => '/home/me/cool_pic.png'
         },
-        caption => "Look at my cool photo!"
+        caption => 'Look at my cool photo!'
     });
-    # Asynchronous request support with Mojo::UserAgent.
+    # Complex objects are as easy as writing a Perl object.
+    $api->sendMessage ({
+        chat_id      => 123456,
+        # Object: ReplyKeyboardMarkup
+        reply_markup => {
+            resize_keyboard => \1, # \1 = true when JSONified, \0 = false
+            keyboard => [
+                # Keyboard: row 1
+                [
+                    # Keyboard: button 1
+                    'Hello world!',
+                    # Keyboard: button 2
+                    {
+                        text => 'Give me your phone number!',
+                        request_contact => \1
+                    }
+                ]
+            ]
+        }
+    });
+    # Asynchronous request are supported with Mojo::UserAgent.
     $api = WWW::Telegram::BotAPI->new (
         token => 'my_token',
-        async => 1
+        async => 1 # WARNING: may fail if Mojo::UserAgent is not available!
     );
     $api->sendMessage ({
         chat_id => 123456,
         text    => 'Hello world!'
     }, sub {
         my ($ua, $tx) = @_;
-        die "Something bad happened!" unless $tx->success;
-        say $tx->res->json->{ok} ? "YAY!" : ":(";
+        die 'Something bad happened!' unless $tx->success;
+        say $tx->res->json->{ok} ? 'YAY!' : ':('; # Not production ready!
     });
     Mojo::IOLoop->start;
 
@@ -313,7 +365,7 @@ By default, the module tries to load L<Mojo::UserAgent>, and on failure it uses 
     $api->setWebhook ({ url => 'https://example.com/webhook' }, sub {
         my ($ua, $tx) = @_;
         die unless $tx->success;
-        say "Webhook set!"
+        say 'Webhook set!'
     });
 
 This module makes use of L<perlsub/"Autoloading">. This means that B<every current and future
@@ -329,6 +381,8 @@ This is, by the way, the exact thing the C<AUTOLOAD> method of this module does.
 
 =head2 api_request
 
+    # Remember: each of these samples can be aliased with
+    # $api->methodName ($params).
     $api->api_request ('getMe');
     $api->api_request ('sendMessage', {
         chat_id => 123456,
@@ -340,6 +394,13 @@ This is, by the way, the exact thing the C<AUTOLOAD> method of this module does.
         document => {
             filename => 'dump.txt',
             content  => 'secret stuff'
+        }
+    });
+    # complex objects are supported natively since v0.04
+    $api->api_request ('sendMessage', {
+        chat_id      => 123456,
+        reply_markup => {
+            keyboard => [ [ 'Button 1', 'Button 2' ] ]
         }
     });
     # with async => 1 and the IOLoop already started
@@ -356,7 +417,7 @@ Once the request is completed, the response is decoded using L<JSON::MaybeXS> an
 returned. If L<Mojo::UserAgent> is used as the user-agent, then the response is decoded
 automatically using L<Mojo::JSON>.
 
-If the request is not successful or the server returns a false value for C<ok>, then this method
+If the request is not successful or the server tells us something isn't C<ok>, then this method
 dies with the first available error message (either the error description or the status line).
 You can make this method non-fatal using C<eval>:
 
@@ -365,7 +426,9 @@ You can make this method non-fatal using C<eval>:
 
 Further processing of error messages can be obtained using L</"parse_error">.
 
-Request parameters can be specified using an hash reference.
+Request parameters can be specified using an hash reference. Additionally, complex objects can be
+specified like you do in JSON. See the previous examples or the example bot provided in
+L</"SEE ALSO">.
 
 File uploads can be specified using an hash reference containing the following mappings:
 
@@ -421,7 +484,7 @@ The order of the arguments, except of the first one, does not matter:
 
     unless (eval { $api->doSomething(...) }) {
         my $error = $api->parse_error;
-        die "Unknown error: $error->{msg}" if $error->{type} eq "unknown";
+        die "Unknown error: $error->{msg}" if $error->{type} eq 'unknown';
         # Handle error gracefully using "type", "msg" and "code" (optional)
     }
     # Or, use it with a custom error message.
