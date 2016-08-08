@@ -235,6 +235,8 @@ sub _fix_request_args
         # the raw POST arguments.
         $args_cpy->[2] = $data;
     }
+    # Ensure that we do NOT try display async subroutines!
+    pop @$args_cpy if ref $args_cpy->[-1] eq "CODE";
     $args_cpy
 }
 
