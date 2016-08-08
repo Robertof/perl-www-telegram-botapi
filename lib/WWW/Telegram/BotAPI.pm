@@ -162,7 +162,7 @@ sub api_request
         else
         {
             $is_lwp
-                and push @request, DEBUG ? (DBG => $postdata) : (),
+                and push @request, DEBUG ? (DBG => $postdata) : (), # handled in _fix_request_args
                                    Content      => JSON::MaybeXS::encode_json $postdata,
                                    Content_Type => "application/json"
                 or  push @request, json         => $postdata;
@@ -175,7 +175,7 @@ sub api_request
     # Stop here if this is a test - specified using the (internal) "_dry_run" flag.
     return 1 if $self->{_dry_run};
     DEBUG and _ddump "BEGIN REQUEST to /%s :: %s", $method, scalar localtime,
-        PAYLOAD => _fix_request_args ($self, [ @request ]);
+        PAYLOAD => _fix_request_args ($self, \@request);
     # Perform the request.
     my $tx = $self->agent->post (@request);
     DEBUG and $async_cb and
@@ -222,18 +222,20 @@ sub agent
 sub _fix_request_args
 {
     my ($self, $args) = @_;
-    $args->[0] =~ s/\Q$self->{token}\E/XXXXXXXXX/g;
+    my $args_cpy = [ @$args ];
+    $args_cpy->[0] =~ s/\Q$self->{token}\E/XXXXXXXXX/g;
     # Note for the careful reader: you may remember that the position of Perl's hash keys is
     # undeterminate - that is, an hash has no particular order. This is true, however we are
     # dealing with an array which has a fixed order, so no particular problem arises here.
+    # Addendum: the original reference of $args is used here to get rid of `DBG => $postdata`.
     if (@$args > 1 and $args->[1] eq "DBG")
     {
         my (undef, $data) = splice @$args, 1, 2;
         # In the debug output, substitute the JSON-encoded data (which is not human readable) with
         # the raw POST arguments.
-        $args->[2] = $data;
+        $args_cpy->[2] = $data;
     }
-    $args
+    $args_cpy
 }
 
 sub _is_lwp
