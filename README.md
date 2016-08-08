@@ -11,26 +11,49 @@ my $api = WWW::Telegram::BotAPI->new (
 );
 # The API methods die when an error occurs.
 say $api->getMe->{result}{username};
+# ... but error handling is available as well.
+my $result = eval { $api->getMe }
+    or die 'Got error message: ', $api->parse_error->{msg};
 # Uploading files is easier than ever.
 $api->sendPhoto ({
     chat_id => 123456,
     photo   => {
-        file => "/home/me/cool_pic.png"
+        file => '/home/me/cool_pic.png'
     },
-    caption => "Look at my cool photo!"
+    caption => 'Look at my cool photo!'
 });
-# Asynchronous request support with Mojo::UserAgent.
+# Complex objects are as easy as writing a Perl object.
+$api->sendMessage ({
+    chat_id      => 123456,
+    # Object: ReplyKeyboardMarkup
+    reply_markup => {
+        resize_keyboard => \1, # \1 = true when JSONified, \0 = false
+        keyboard => [
+            # Keyboard: row 1
+            [
+                # Keyboard: button 1
+                'Hello world!',
+                # Keyboard: button 2
+                {
+                    text => 'Give me your phone number!',
+                    request_contact => \1
+                }
+            ]
+        ]
+    }
+});
+# Asynchronous request are supported with Mojo::UserAgent.
 $api = WWW::Telegram::BotAPI->new (
     token => 'my_token',
-    async => 1
+    async => 1 # WARNING: may fail if Mojo::UserAgent is not available!
 );
 $api->sendMessage ({
     chat_id => 123456,
     text    => 'Hello world!'
 }, sub {
     my ($ua, $tx) = @_;
-    die "Something bad happened!" unless $tx->success;
-    say $tx->res->json->{ok} ? "YAY!" : ":(";
+    die 'Something bad happened!' unless $tx->success;
+    say $tx->res->json->{ok} ? 'YAY!' : ':('; # Not production ready!
 });
 Mojo::IOLoop->start;
 ```
@@ -75,9 +98,6 @@ Creates a new [WWW::Telegram::BotAPI](https://metacpan.org/pod/WWW::Telegram::Bo
 
     **This requires [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent), and the method will croak if it isn't found.**
 
-    **NOTE:** _all_ requests will be asynchronous when this option is enabled, and if a method
-    is called without a callback then it will croak.
-
     Defaults to `0`.
 
 - `force_lwp => 1`
@@ -99,13 +119,13 @@ $api->sendMessage ({
 $api->setWebhook ({ url => 'https://example.com/webhook' }, sub {
     my ($ua, $tx) = @_;
     die unless $tx->success;
-    say "Webhook set!"
+    say 'Webhook set!'
 });
 ```
 
-This module makes use of ["Autoloading" in perlsub](https://metacpan.org/pod/perlsub#Autoloading). This means that every current and future method
-of the Telegram Bot API can be used by calling its Perl equivalent, without requiring an update
-of the module.
+This module makes use of ["Autoloading" in perlsub](https://metacpan.org/pod/perlsub#Autoloading). This means that **every current and future
+method of the Telegram Bot API can be used by calling its Perl equivalent**, without requiring an
+update of the module.
 
 If you'd like to avoid using `AUTOLOAD`, then you may simply call the ["api\_request"](#api_request) method
 specifying the method name as the first argument.
@@ -119,6 +139,8 @@ This is, by the way, the exact thing the `AUTOLOAD` method of this module does.
 ## api\_request
 
 ```perl
+# Remember: each of these samples can be aliased with
+# $api->methodName ($params).
 $api->api_request ('getMe');
 $api->api_request ('sendMessage', {
     chat_id => 123456,
@@ -130,6 +152,13 @@ $api->api_request ('sendDocument', {
     document => {
         filename => 'dump.txt',
         content  => 'secret stuff'
+    }
+});
+# complex objects are supported natively since v0.04
+$api->api_request ('sendMessage', {
+    chat_id      => 123456,
+    reply_markup => {
+        keyboard => [ [ 'Button 1', 'Button 2' ] ]
     }
 });
 # with async => 1 and the IOLoop already started
@@ -147,9 +176,22 @@ Once the request is completed, the response is decoded using [JSON::MaybeXS](htt
 returned. If [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent) is used as the user-agent, then the response is decoded
 automatically using [Mojo::JSON](https://metacpan.org/pod/Mojo::JSON).
 
-Parameters can be specified using an hash reference.
+If the request is not successful or the server tells us something isn't `ok`, then this method
+dies with the first available error message (either the error description or the status line).
+You can make this method non-fatal using `eval`:
 
-File uploads are specified using an hash reference containing the following mappings:
+```perl
+my $response = eval { $api->api_request ($method, $args) }
+    or warn "Request failed with error '$@', but I'm still alive!";
+```
+
+Further processing of error messages can be obtained using ["parse\_error"](#parse_error).
+
+Request parameters can be specified using an hash reference. Additionally, complex objects can be
+specified like you do in JSON. See the previous examples or the example bot provided in
+["SEE ALSO"](#see-also).
+
+File uploads can be specified using an hash reference containing the following mappings:
 
 - `file => '/path/to/file.ext'`
 
@@ -184,7 +226,7 @@ $api->sendPhoto ({
 });
 ```
 
-When asynchronous requests are enabled, a callback has to be specified as an argument.
+When asynchronous requests are enabled, a callback can be specified as an argument.
 The arguments passed to the callback are, in order, the user-agent (a [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent) object)
 and the response (a [Mojo::Transaction::HTTP](https://metacpan.org/pod/Mojo::Transaction::HTTP) object). More information can be found in the
 documentation of [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent) and [Mojo::Transaction::HTTP](https://metacpan.org/pod/Mojo::Transaction::HTTP).
@@ -198,6 +240,45 @@ The order of the arguments, except of the first one, does not matter:
 $api->api_request ('sendMessage', $parameters, $callback);
 $api->api_request ('sendMessage', $callback, $parameters); # same thing!
 ```
+
+## parse\_error
+
+```perl
+unless (eval { $api->doSomething(...) }) {
+    my $error = $api->parse_error;
+    die "Unknown error: $error->{msg}" if $error->{type} eq 'unknown';
+    # Handle error gracefully using "type", "msg" and "code" (optional)
+}
+# Or, use it with a custom error message.
+my $error = $api->parse_error ($message);
+```
+
+When sandboxing calls to [WWW::Telegram::BotAPI](https://metacpan.org/pod/WWW::Telegram::BotAPI) methods using `eval`, it is useful to parse
+error messages using this method.
+
+This method accepts an error message as its first argument, otherwise `$@` is used.
+
+An hash reference containing the following elements is returned:
+
+- `type => unknown|agent|api`
+
+    The source of the error.
+
+    `api` specifies an error originating from Telegram's BotAPI. When `type` is `api`, the key
+    `code` is guaranteed to exist.
+
+    `agent` specifies an error originating from this module's user-agent. This may indicate a network
+    issue, a non-200 HTTP response code or any error not related to the API.
+
+    `unknown` specifies an error with no known source.
+
+- `msg => ...`
+
+    The error message.
+
+- `code => ...`
+
+    The error code. **This key only exists when `type` is `api`**.
 
 ## agent
 
