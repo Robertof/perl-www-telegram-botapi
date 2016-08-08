@@ -1,3 +1,12 @@
+0.04 2016-08-08
+  - Major change to how requests are handled. Every request is now sent using `application/json`
+    by default, except when uploading, where `multipart/form-data` is used instead.
+    This has the benefit of allowing the usage of complex objects with zero effort.
+    It *should not* be a breaking change (except if dealing with the internals of this module).
+  - Implement `parse_error`. This new method allows to parse errors and obtain information about
+    them, such as their source or code. Please see the updated documentation.
+  - Asynchronous callbacks are no more mandatory when async mode is enabled. When the callback is
+    missing, requests are simply executed synchronously.
 0.03 2015-10-31
   - Happy Halloween!
   - Add new debugging mode, enabled by setting the `TELEGRAM_BOTAPI_DEBUG` environment variable
