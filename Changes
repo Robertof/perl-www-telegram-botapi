@@ -1,3 +1,6 @@
+0.05 2016-08-21
+  - Fix compatibility with older Perls.
+  - Improve debugging output.
 0.04 2016-08-08
   - Major change to how requests are handled. Every request is now sent using `application/json`
     by default, except when uploading, where `multipart/form-data` is used instead.
