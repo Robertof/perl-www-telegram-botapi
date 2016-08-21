@@ -235,6 +235,8 @@ sub _fix_request_args
     if (@$args > 1 and $args->[1] eq "DBG")
     {
         my (undef, $data) = splice @$args, 1, 2;
+        # Be sure to get rid of the `DBG` key in our copy too.
+        splice @$args_cpy, 1, 2;
         # In the debug output, substitute the JSON-encoded data (which is not human readable) with
         # the raw POST arguments.
         $args_cpy->[2] = $data;
