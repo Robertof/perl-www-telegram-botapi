@@ -1,3 +1,5 @@
+0.06 2016-08-21
+  - Fix a critical encoding issue involving LWP, file uploads and UTF-8 fields.
 0.05 2016-08-21
   - Fix compatibility with older Perls.
   - Improve debugging output.
