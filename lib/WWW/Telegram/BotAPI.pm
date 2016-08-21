@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use warnings::register;
 use Carp ();
+use Encode ();
 use JSON::MaybeXS ();
 use constant DEBUG => $ENV{TELEGRAM_BOTAPI_DEBUG} || 0;
 
@@ -113,7 +114,9 @@ sub api_request
         # Traverse the post arguments.
         for my $k (keys %$postdata)
         {
-            next unless my $ref = ref $postdata->{$k};
+            # Ensure we pass octets to LWP and that we deal only with references.
+            ($is_lwp ? $postdata->{$k} = Encode::encode ("utf-8", $postdata->{$k}) : ()), next
+                unless my $ref = ref $postdata->{$k};
             # Process file uploads.
             if ($ref eq "HASH" and
                 (exists $postdata->{$k}{file} or exists $postdata->{$k}{content}))
