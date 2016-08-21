@@ -10,7 +10,7 @@ WriteMakefile (
     ABSTRACT         => 'Perl implementation of the Telegram Bot API',
     LICENSE          => 'artistic_2',
     PREREQ_PM        => {
-        map { $_ => 0 } qw[Carp LWP::UserAgent LWP::Protocol::https JSON::MaybeXS]
+        map { $_ => 0 } qw[Carp Encode LWP::UserAgent LWP::Protocol::https JSON::MaybeXS]
     },
 
     (eval { ExtUtils::MakeMaker->VERSION(6.46) } ?
