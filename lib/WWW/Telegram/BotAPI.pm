@@ -6,7 +6,7 @@ use Carp ();
 use JSON::MaybeXS ();
 use constant DEBUG => $ENV{TELEGRAM_BOTAPI_DEBUG} || 0;
 
-our $VERSION = "0.04";
+our $VERSION = "0.05";
 my $json; # for debugging purposes, only defined when DEBUG = 1
 
 BEGIN {
