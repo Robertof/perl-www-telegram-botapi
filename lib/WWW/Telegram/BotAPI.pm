@@ -205,12 +205,16 @@ sub api_request
 sub parse_error
 {
     my $r = { type => "unknown", msg => $_[1] || $@ };
-    return $r unless $r->{msg} =~ /ERROR: (?:code (?<code>[0-9]+): )?(?<msg>.+?)(?:\s*at .+)?$/m;
+    # The following regexp matches the error code to the first group and the error message to the
+    # second.
+    return $r unless $r->{msg} =~ /ERROR: (?:code ([0-9]+): )?(.+?)(?:\s*at .+)?$/m;
+    # Find and save the error code and message.
+    $r->{code} = $1 if $1;
+    $r->{msg}  = $2;
     # If the error message has a code, then it comes from the BotAPI. Otherwise, it's our agent
     # telling us something went wrong.
-    $r->{type} = exists $+{code} ? "api" : "agent" if $+{msg} ne "something went wrong!";
-    # Join our response with the matched groups, then return.
-    +{ %$r, %+ }
+    $r->{type} = exists $r->{code} ? "api" : "agent" if $r->{msg} ne "something went wrong!";
+    $r
 }
 
 sub agent
