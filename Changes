@@ -1,3 +1,5 @@
+0.07 2016-08-23
+  - Don't encode to UTF-8 when JSON::MaybeXS takes care of it.
 0.06 2016-08-21
   - Fix a critical encoding issue involving LWP, file uploads and UTF-8 fields.
 0.05 2016-08-21
