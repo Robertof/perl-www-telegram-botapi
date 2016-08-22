@@ -110,13 +110,17 @@ sub api_request
         # - whenever a file upload exists, the MIME type is switched to multipart/form-data.
         #   Other refs which are not file uploads are then encoded with JSON::MaybeXS.
         my @fixable_keys; # This array holds keys found before file uploads which have to be fixed.
+        my @utf8_keys; # This array holds keys found before file uploads which have to be encoded.
         my $has_file_upload;
         # Traverse the post arguments.
         for my $k (keys %$postdata)
         {
-            # Ensure we pass octets to LWP and that we deal only with references.
-            ($is_lwp ? $postdata->{$k} = Encode::encode ("utf-8", $postdata->{$k}) : ()), next
-                unless my $ref = ref $postdata->{$k};
+            # Ensure we pass octets to LWP with multipart/form-data and that we deal only with
+            # references.
+            ($is_lwp
+                ? $has_file_upload ? $postdata->{$k} = Encode::encode ("utf-8", $postdata->{$k})
+                                   : push @utf8_keys, $k
+                : ()), next unless my $ref = ref $postdata->{$k};
             # Process file uploads.
             if ($ref eq "HASH" and
                 (exists $postdata->{$k}{file} or exists $postdata->{$k}{content}))
@@ -157,6 +161,7 @@ sub api_request
         {
             # Fix keys found before the file upload.
             $postdata->{$_} = JSON::MaybeXS::encode_json $postdata->{$_} for @fixable_keys;
+            $postdata->{$_} = Encode::encode ("utf-8", $postdata->{$_})  for @utf8_keys;
             $is_lwp
                 and push @request, Content      => $postdata,
                                    Content_Type => "form-data"
