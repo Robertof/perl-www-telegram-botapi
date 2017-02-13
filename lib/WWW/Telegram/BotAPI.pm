@@ -7,7 +7,7 @@ use Encode ();
 use JSON::MaybeXS ();
 use constant DEBUG => $ENV{TELEGRAM_BOTAPI_DEBUG} || 0;
 
-our $VERSION = "0.07";
+our $VERSION = "0.08";
 my $json; # for debugging purposes, only defined when DEBUG = 1
 
 BEGIN {
