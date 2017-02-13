@@ -200,11 +200,14 @@ sub api_request
     unless (($is_lwp ? $tx->is_success : $tx->success) && $response && $response->{ok})
     {
         $response ||= {};
+        # Handle old errors supplied by ancient Mojolicious versions: in some conditions,
+        # `$tx->error` returned a string instead of the expected hash reference. See issue #16.
+        my $error = $response->{description} || ($is_lwp ? $tx->status_line :
+            ((ref ($tx->error || {}) ? $tx->error : { message => $tx->error }) || {})->{message});
         # Print either the error returned by the API or the HTTP status line.
         Carp::confess
             "ERROR: ", ($response->{error_code} ? "code " . $response->{error_code} . ": " : ""),
-            $response->{description} ? $response->{description} : $is_lwp ?
-                $tx->status_line : ($tx->error || {})->{message} || "something went wrong!"
+            $error || "something went wrong!";
     }
     DEBUG and _dprintf "END REQUEST to /%s :: %s", $method, scalar localtime;
     $response
