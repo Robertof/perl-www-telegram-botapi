@@ -77,6 +77,11 @@ my $api = WWW::Telegram::BotAPI->new (%options);
 
 Creates a new [WWW::Telegram::BotAPI](https://metacpan.org/pod/WWW::Telegram::BotAPI) instance.
 
+**WARNING:** you should only create one instance of this module and reuse it when needed. Calling
+`new` each time you run an async request causes unexpected behavior with [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent) and
+won't work correctly. See also
+[issue #13 on GitHub](https://github.com/Robertof/perl-www-telegram-botapi/issues/13).
+
 `%options` may contain the following:
 
 - `token => 'my_token'`
@@ -320,7 +325,8 @@ yourself as shown in the ["SYNOPSIS"](#synopsis).
 
 [LWP::UserAgent](https://metacpan.org/pod/LWP::UserAgent), [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent),
 [https://core.telegram.org/bots/api](https://core.telegram.org/bots/api), [https://core.telegram.org/bots](https://core.telegram.org/bots),
-[example implementation of a Telegram bot](https://git.io/vlOK0)
+[example implementation of a Telegram bot](https://git.io/vlOK0),
+[example implementation of an async Telegram bot](https://git.io/vDrwL)
 
 # Author
 
