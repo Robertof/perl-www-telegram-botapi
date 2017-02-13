@@ -341,6 +341,11 @@ L<WWW::Telegram::BotAPI> implements the following methods.
 
 Creates a new L<WWW::Telegram::BotAPI> instance.
 
+B<WARNING:> you should only create one instance of this module and reuse it when needed. Calling
+C<new> each time you run an async request causes unexpected behavior with L<Mojo::UserAgent> and
+won't work correctly. See also
+L<issue #13 on GitHub|https://github.com/Robertof/perl-www-telegram-botapi/issues/13>.
+
 C<%options> may contain the following:
 
 =over 4
@@ -576,7 +581,8 @@ yourself as shown in the L</"SYNOPSIS">.
 
 L<LWP::UserAgent>, L<Mojo::UserAgent>,
 L<https://core.telegram.org/bots/api>, L<https://core.telegram.org/bots>,
-L<example implementation of a Telegram bot|https://git.io/vlOK0>
+L<example implementation of a Telegram bot|https://git.io/vlOK0>,
+L<example implementation of an async Telegram bot|https://git.io/vDrwL>
 
 =head1 AUTHOR
 
