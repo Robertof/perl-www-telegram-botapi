@@ -12,8 +12,9 @@ my $json; # for debugging purposes, only defined when DEBUG = 1
 
 BEGIN {
     eval "require Mojo::UserAgent; 1" or
-        eval "require LWP::UserAgent; 1" or
-        die "Either Mojo::UserAgent or LWP::UserAgent is required.\n$@";
+        eval "require AnyEvent::HTTP && require WWW::Telegram::BotAPI::Impl::AnyEvent; 1" or
+            eval "require LWP::UserAgent; 1" or
+            die "Either Mojo::UserAgent or AnyEvent::HTTP or LWP::UserAgent is required.\n$@";
     $json = JSON::MaybeXS->new (pretty => 1, utf8 => 1) if DEBUG;
 }
 
@@ -54,8 +55,11 @@ sub new
         and require LWP::UserAgent;
     # Instantiate the correct user-agent. This automatically detects whether Mojo::UserAgent is
     # available or not.
-    $settings{_agent} = ($settings{force_lwp} or !Mojo::UserAgent->can ("new")) ?
-        LWP::UserAgent->new : Mojo::UserAgent->new;
+    $settings{_agent} = $settings{force_lwp} ? LWP::UserAgent->new :
+                            Mojo::UserAgent->can ("new") ? Mojo::UserAgent->new :
+                            exists $INC{'WWW/Telegram/BotAPI/Impl/AnyEvent.pm'} ?
+                                WWW::Telegram::BotAPI::Impl::AnyEvent->new :
+                                LWP::UserAgent->new;
     ($settings{async}  ||= 0) and $settings{_agent}->isa ("LWP::UserAgent")
         and Carp::croak "ERROR: Mojo::UserAgent is required to use 'async'.";
     $settings{api_url} ||= "https://api.telegram.org/bot%s/%s";
