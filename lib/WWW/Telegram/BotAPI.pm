@@ -520,6 +520,9 @@ The order of the arguments, except of the first one, does not matter:
 When sandboxing calls to L<WWW::Telegram::BotAPI> methods using C<eval>, it is useful to parse
 error messages using this method.
 
+B<WARNING:> up until version 0.09, this method incorrectly stopped at the first occurence of C<at>
+in error messages, producing results such as C<missing ch> instead of C<missing chat>.
+
 This method accepts an error message as its first argument, otherwise C<$@> is used.
 
 An hash reference containing the following elements is returned:
