@@ -9,7 +9,7 @@ BEGIN {
     eval 'use Test::MockObject';
 }
 
-plan tests => 10;
+plan tests => 12;
 
 like (
     exception { WWW::Telegram::BotAPI->new },
@@ -54,6 +54,9 @@ SKIP: {
     like $msg = exception { $inst->something }, qr/ERROR: :</, 'plain string errors are handled';
     test_error ($msg, type => 'agent', msg => ':<');
 }
+
+# Test error messages containing 'at' (issue #19).
+test_error ('ERROR: chat not found', type => 'agent', msg => 'chat not found');
 
 sub test_error {
     my ($message, %configuration) = @_;

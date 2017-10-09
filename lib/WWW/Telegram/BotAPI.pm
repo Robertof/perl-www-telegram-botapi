@@ -218,7 +218,8 @@ sub parse_error
     my $r = { type => "unknown", msg => $_[1] || $@ };
     # The following regexp matches the error code to the first group and the error message to the
     # second.
-    return $r unless $r->{msg} =~ /ERROR: (?:code ([0-9]+): )?(.+?)(?:\s*at .+)?$/m;
+    # Issue #19: match only `at ...` messages separated by at least one space. See t/02-exceptions
+    return $r unless $r->{msg} =~ /ERROR: (?:code ([0-9]+): )?(.+?)(?:\s+at .+)?$/m;
     # Find and save the error code and message.
     $r->{code} = $1 if $1;
     $r->{msg}  = $2;
