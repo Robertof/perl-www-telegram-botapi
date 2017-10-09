@@ -261,6 +261,9 @@ my $error = $api->parse_error ($message);
 When sandboxing calls to [WWW::Telegram::BotAPI](https://metacpan.org/pod/WWW::Telegram::BotAPI) methods using `eval`, it is useful to parse
 error messages using this method.
 
+**WARNING:** up until version 0.09, this method incorrectly stopped at the first occurence of `at`
+in error messages, producing results such as `missing ch` instead of `missing chat`.
+
 This method accepts an error message as its first argument, otherwise `$@` is used.
 
 An hash reference containing the following elements is returned:
