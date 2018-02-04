@@ -1,3 +1,6 @@
+0.10 2018-02-05
+  - Wrap calls to JSON::MaybeXS::encode_json() with parentheses. This fixes recent test failures.
+    Sorry everybody, and thanks Flavio (@polettix)!
 0.09 2017-10-10
   - Fix error messages containing "at" being incorrectly parsed by `parse_error`. See issue #19.
     Thanks Thomas!
