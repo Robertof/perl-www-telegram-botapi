@@ -298,15 +298,15 @@ sub lwp_mock
 sub mojo_mock
 {
     my $response = shift;
-    my $mock_response = Test::MockObject->new->set_true ('success')->set_always ('res',
+    my $mock_response = Test::MockObject->new->set_false ('error')->set_always ('res',
         Test::MockObject->new->set_always ('json', $response));
     my $mock_agent = Test::MockObject->new->mock ('post', sub {
         if (ref (my $cb = pop) eq 'CODE') # Async request
         {
             my $response = $mock_response->res->json;
-            # Fake the 'success' call when async is used - WWW::Telegram::BotAPI does not
+            # Fake the '!$tx->error' call when async is used - WWW::Telegram::BotAPI does not
             # verify if the request succeeded when async is true.
-            $mock_response->success;
+            $mock_response->error;
             # Call the callback (no pun intended) with the response.
             $cb->($response);
             return 'ASYNC IS COOL';
@@ -315,5 +315,5 @@ sub mojo_mock
         $mock_response
     });
     $mock_agent->set_isa ('Mojo::UserAgent');
-    ($mock_agent, $mock_response, 'res', 'success')
+    ($mock_agent, $mock_response, 'res', 'error')
 }

@@ -29,8 +29,7 @@ SKIP: {
     my $inst = WWW::Telegram::BotAPI->new (token => 'whatever');
     # 1. Test agent-provided errors
     my $mojo_mock = Test::MockObject->new->set_always ('post',
-        Test::MockObject->new->set_false  ('success')
-                             ->set_always ('error', { message => ':<' })
+        Test::MockObject->new->set_always ('error', { message => ':<' })
                              ->set_always ('res', Test::MockObject->new->set_false ('json')));
     $mojo_mock->set_isa ('Mojo::UserAgent');
     $inst->{_agent} = $mojo_mock; # Do not try this at home!
@@ -38,7 +37,7 @@ SKIP: {
     test_error ($msg, type => 'agent', msg => ':<');
     # 2. Test API-provided errors
     $mojo_mock->set_always ('post',
-        Test::MockObject->new->set_true   ('success')
+        Test::MockObject->new->set_false  ('error')
                              ->set_always ('res', Test::MockObject->new->set_always ('json', {
                                  ok          => 0,
                                  description => 'Meow!',
@@ -48,8 +47,7 @@ SKIP: {
     test_error ($msg, type => 'api', msg => 'Meow!', code => 1337);
     # 3. Test plain-string error handling
     $mojo_mock->set_always ('post',
-        Test::MockObject->new->set_false  ('success')
-                             ->set_always ('error', ':<')
+        Test::MockObject->new->set_always ('error', ':<')
                              ->set_always ('res', Test::MockObject->new->set_false ('json')));
     like $msg = exception { $inst->something }, qr/ERROR: :</, 'plain string errors are handled';
     test_error ($msg, type => 'agent', msg => ':<');

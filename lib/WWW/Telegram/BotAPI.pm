@@ -197,7 +197,7 @@ sub api_request
     # Dump it in debug mode.
     DEBUG and _ddump RESPONSE => $response;
     # If we (or the server) f****d up... die horribly.
-    unless (($is_lwp ? $tx->is_success : $tx->success) && $response && $response->{ok})
+    unless (($is_lwp ? $tx->is_success : !$tx->error) && $response && $response->{ok})
     {
         $response ||= {};
         # Handle old errors supplied by ancient Mojolicious versions: in some conditions,
@@ -320,7 +320,7 @@ WWW::Telegram::BotAPI - Perl implementation of the Telegram Bot API
         text    => 'Hello world!'
     }, sub {
         my ($ua, $tx) = @_;
-        die 'Something bad happened!' unless $tx->success;
+        die 'Something bad happened!' if $tx->error;
         say $tx->res->json->{ok} ? 'YAY!' : ':('; # Not production ready!
     });
     Mojo::IOLoop->start;
@@ -391,7 +391,7 @@ By default, the module tries to load L<Mojo::UserAgent>, and on failure it uses 
     # with async => 1 and the IOLoop already started
     $api->setWebhook ({ url => 'https://example.com/webhook' }, sub {
         my ($ua, $tx) = @_;
-        die unless $tx->success;
+        die if $tx->error;
         say 'Webhook set!'
     });
 
@@ -433,7 +433,7 @@ This is, by the way, the exact thing the C<AUTOLOAD> method of this module does.
     # with async => 1 and the IOLoop already started
     $api->api_request ('getMe', sub {
         my ($ua, $tx) = @_;
-        die unless $tx->success;
+        die if $tx->error;
         # ...
     });
 
