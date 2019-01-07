@@ -1,3 +1,6 @@
+0.11 2019-01-07
+  - Replace deprecated calls to Mojo::Transaction::success with Mojo::Transaction::error.
+    See issue #28. Thanks @huckeduster!
 0.10 2018-02-05
   - Wrap calls to JSON::MaybeXS::encode_json() with parentheses. This fixes recent test failures.
     Sorry everybody, and thanks Flavio (@polettix)!
