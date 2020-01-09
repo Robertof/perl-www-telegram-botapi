@@ -54,8 +54,24 @@ sub new
         and require LWP::UserAgent;
     # Instantiate the correct user-agent. This automatically detects whether Mojo::UserAgent is
     # available or not.
-    $settings{_agent} = ($settings{force_lwp} or !Mojo::UserAgent->can ("new")) ?
-        LWP::UserAgent->new : Mojo::UserAgent->new;
+    if ($settings{force_lwp} or !Mojo::UserAgent->can ("new"))
+    {
+        $settings{_agent} = LWP::UserAgent->new;
+    } else {
+        $settings{_agent} = Mojo::UserAgent->new;
+        # Setup an handler to print detailed information in case of proxy connection failure.
+        DEBUG and $settings{_agent}->on (start => sub {
+            my (undef, $tx) = @_;
+            # Skip all requests which are not proxy-related.
+            return unless $tx->req->method eq "CONNECT";
+            # Add an handler on completion.
+            $tx->on (finish => sub {
+                my $tx = shift;
+                _dprintf "ERROR: Got error from proxy server: %s", _mojo_error_to_string ($tx)
+                    if $tx->error;
+            });
+        })
+    }
     ($settings{async}  ||= 0) and $settings{_agent}->isa ("LWP::UserAgent")
         and Carp::croak "ERROR: Mojo::UserAgent is required to use 'async'.";
     $settings{api_url} ||= "https://api.telegram.org/bot%s/%s";
@@ -200,10 +216,9 @@ sub api_request
     unless (($is_lwp ? $tx->is_success : !$tx->error) && $response && $response->{ok})
     {
         $response ||= {};
-        # Handle old errors supplied by ancient Mojolicious versions: in some conditions,
-        # `$tx->error` returned a string instead of the expected hash reference. See issue #16.
-        my $error = $response->{description} || ($is_lwp ? $tx->status_line :
-            ((ref ($tx->error || {}) ? $tx->error : { message => $tx->error }) || {})->{message});
+        my $error = $response->{description} || (
+            $is_lwp ? $tx->status_line : _mojo_error_to_string ($tx)
+        );
         # Print either the error returned by the API or the HTTP status line.
         Carp::confess
             "ERROR: ", ($response->{error_code} ? "code " . $response->{error_code} . ": " : ""),
@@ -261,6 +276,14 @@ sub _fix_request_args
 sub _is_lwp
 {
     shift->agent->isa ("LWP::UserAgent")
+}
+
+# Extracts an error message returned from Mojo::UserAgent in a way that's compatible for all
+# Mojolicious versions: in some conditions, `$tx->error` returned a string instead of the
+# expected hash reference. See issue #16.
+sub _mojo_error_to_string {
+    my $tx = shift;
+    ((ref ($tx->error || {}) ? $tx->error : { message => $tx->error }) || {})->{message}
 }
 
 1;
@@ -560,6 +583,31 @@ L<LWP::UserAgent> or L<Mojo::UserAgent> by using C<isa>:
 
     my $is_lwp = $user_agent->isa ('LWP::UserAgent');
 
+=head3 USING A PROXY
+
+Since all the painful networking stuff is delegated to one of the two supported user agents
+(either L<LWP::UserAgent> or L<Mojo::UserAgent>), you can use their built-in support for proxies
+by accessing the user agent object. An example of how this may look like is the following:
+
+    my $user_agent = $api->agent;
+    if ($user_agent->isa ('LWP::UserAgent')) {
+      # Use LWP::Protocol::connect (for https)
+      $user_agent->proxy ('https', '...');
+      # Or if you prefer, load proxy settings from the environment.
+      # $user_agent->env_proxy;
+    } else {
+      # Mojo::UserAgent (builtin)
+      $user_agent->proxy->https ('...');
+      # Or if you prefer, load proxy settings from the environment.
+      # $user_agent->detect;
+    }
+
+B<NOTE:> Unfortunately, L<Mojo::UserAgent> returns an opaque C<Proxy connection failed> when
+something goes wrong with the C<CONNECT> request made to the proxy. To alleviate this, since
+version 0.12, this module prints the real reason of failure in debug mode. See L</"DEBUGGING">.
+If you need to access the real error reason in your code, please see
+L<issue #29 on GitHub|https://github.com/Robertof/perl-www-telegram-botapi/issues/29>.
+
 =head1 DEBUGGING
 
 To perform some cool troubleshooting, you can set the environment variable C<TELEGRAM_BOTAPI_DEBUG>
@@ -570,6 +618,8 @@ to a true value:
 This dumps the content of each request and response in a friendly, human-readable way.
 It also prints the version and the configuration of the module. As a security measure, the bot's
 token is automatically removed from the output of the dump.
+
+Since version 0.12, enabling this flag also gives more details when a proxy connection fails.
 
 B<WARNING:> using this option along with an old Mojolicious version (< 6.22) leads to a warning,
 and forces L<LWP::UserAgent> instead of L<Mojo::UserAgent>. This is because L<Mojo::JSON>
