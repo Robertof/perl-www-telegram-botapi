@@ -52,7 +52,7 @@ $api->sendMessage ({
     text    => 'Hello world!'
 }, sub {
     my ($ua, $tx) = @_;
-    die 'Something bad happened!' unless $tx->success;
+    die 'Something bad happened!' if $tx->error;
     say $tx->res->json->{ok} ? 'YAY!' : ':('; # Not production ready!
 });
 Mojo::IOLoop->start;
@@ -62,12 +62,12 @@ Mojo::IOLoop->start;
 
 This module provides an easy to use interface for the
 [Telegram Bot API](https://core.telegram.org/bots/api). It also supports async requests out of the
-box using [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent), which makes this module easy to integrate with an existing
+box using [Mojo::UserAgent](https://metacpan.org/pod/Mojo%3A%3AUserAgent), which makes this module easy to integrate with an existing
 [Mojolicious](https://metacpan.org/pod/Mojolicious) application.
 
 # Methods
 
-[WWW::Telegram::BotAPI](https://metacpan.org/pod/WWW::Telegram::BotAPI) implements the following methods.
+[WWW::Telegram::BotAPI](https://metacpan.org/pod/WWW%3A%3ATelegram%3A%3ABotAPI) implements the following methods.
 
 ## new
 
@@ -75,10 +75,10 @@ box using [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent), which mak
 my $api = WWW::Telegram::BotAPI->new (%options);
 ```
 
-Creates a new [WWW::Telegram::BotAPI](https://metacpan.org/pod/WWW::Telegram::BotAPI) instance.
+Creates a new [WWW::Telegram::BotAPI](https://metacpan.org/pod/WWW%3A%3ATelegram%3A%3ABotAPI) instance.
 
 **WARNING:** you should only create one instance of this module and reuse it when needed. Calling
-`new` each time you run an async request causes unexpected behavior with [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent) and
+`new` each time you run an async request causes unexpected behavior with [Mojo::UserAgent](https://metacpan.org/pod/Mojo%3A%3AUserAgent) and
 won't work correctly. See also
 [issue #13 on GitHub](https://github.com/Robertof/perl-www-telegram-botapi/issues/13).
 
@@ -101,16 +101,16 @@ won't work correctly. See also
 
     Enables asynchronous requests.
 
-    **This requires [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent), and the method will croak if it isn't found.**
+    **This requires [Mojo::UserAgent](https://metacpan.org/pod/Mojo%3A%3AUserAgent), and the method will croak if it isn't found.**
 
     Defaults to `0`.
 
 - `force_lwp => 1`
 
-    Forces the usage of [LWP::UserAgent](https://metacpan.org/pod/LWP::UserAgent) instead of [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent), even if the latter is
+    Forces the usage of [LWP::UserAgent](https://metacpan.org/pod/LWP%3A%3AUserAgent) instead of [Mojo::UserAgent](https://metacpan.org/pod/Mojo%3A%3AUserAgent), even if the latter is
     available.
 
-    By default, the module tries to load [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent), and on failure it uses [LWP::UserAgent](https://metacpan.org/pod/LWP::UserAgent).
+    By default, the module tries to load [Mojo::UserAgent](https://metacpan.org/pod/Mojo%3A%3AUserAgent), and on failure it uses [LWP::UserAgent](https://metacpan.org/pod/LWP%3A%3AUserAgent).
 
 ## AUTOLOAD
 
@@ -123,7 +123,7 @@ $api->sendMessage ({
 # with async => 1 and the IOLoop already started
 $api->setWebhook ({ url => 'https://example.com/webhook' }, sub {
     my ($ua, $tx) = @_;
-    die unless $tx->success;
+    die if $tx->error;
     say 'Webhook set!'
 });
 ```
@@ -169,7 +169,7 @@ $api->api_request ('sendMessage', {
 # with async => 1 and the IOLoop already started
 $api->api_request ('getMe', sub {
     my ($ua, $tx) = @_;
-    die unless $tx->success;
+    die if $tx->error;
     # ...
 });
 ```
@@ -177,9 +177,9 @@ $api->api_request ('getMe', sub {
 This method performs an API request. The first argument must be the method name
 ([here's a list](https://core.telegram.org/bots/api#available-methods)).
 
-Once the request is completed, the response is decoded using [JSON::MaybeXS](https://metacpan.org/pod/JSON::MaybeXS) and then
-returned. If [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent) is used as the user-agent, then the response is decoded
-automatically using [Mojo::JSON](https://metacpan.org/pod/Mojo::JSON).
+Once the request is completed, the response is decoded using [JSON::MaybeXS](https://metacpan.org/pod/JSON%3A%3AMaybeXS) and then
+returned. If [Mojo::UserAgent](https://metacpan.org/pod/Mojo%3A%3AUserAgent) is used as the user-agent, then the response is decoded
+automatically using [Mojo::JSON](https://metacpan.org/pod/Mojo%3A%3AJSON).
 
 If the request is not successful or the server tells us something isn't `ok`, then this method
 dies with the first available error message (either the error description or the status line).
@@ -218,7 +218,7 @@ File uploads can be specified using an hash reference containing the following m
 
     Custom headers can be specified as hash mappings.
 
-Upload of multiple files is not supported. See ["tx" in Mojo::UserAgent::Transactor](https://metacpan.org/pod/Mojo::UserAgent::Transactor#tx) for more
+Upload of multiple files is not supported. See ["tx" in Mojo::UserAgent::Transactor](https://metacpan.org/pod/Mojo%3A%3AUserAgent%3A%3ATransactor#tx) for more
 information about file uploads.
 
 To resend files, you don't need to perform a file upload at all. Just pass the ID as a normal
@@ -232,11 +232,11 @@ $api->sendPhoto ({
 ```
 
 When asynchronous requests are enabled, a callback can be specified as an argument.
-The arguments passed to the callback are, in order, the user-agent (a [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent) object)
-and the response (a [Mojo::Transaction::HTTP](https://metacpan.org/pod/Mojo::Transaction::HTTP) object). More information can be found in the
-documentation of [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent) and [Mojo::Transaction::HTTP](https://metacpan.org/pod/Mojo::Transaction::HTTP).
+The arguments passed to the callback are, in order, the user-agent (a [Mojo::UserAgent](https://metacpan.org/pod/Mojo%3A%3AUserAgent) object)
+and the response (a [Mojo::Transaction::HTTP](https://metacpan.org/pod/Mojo%3A%3ATransaction%3A%3AHTTP) object). More information can be found in the
+documentation of [Mojo::UserAgent](https://metacpan.org/pod/Mojo%3A%3AUserAgent) and [Mojo::Transaction::HTTP](https://metacpan.org/pod/Mojo%3A%3ATransaction%3A%3AHTTP).
 
-**NOTE:** ensure that the event loop [Mojo::IOLoop](https://metacpan.org/pod/Mojo::IOLoop) is started when using asynchronous requests.
+**NOTE:** ensure that the event loop [Mojo::IOLoop](https://metacpan.org/pod/Mojo%3A%3AIOLoop) is started when using asynchronous requests.
 This is not needed when using this module inside a [Mojolicious](https://metacpan.org/pod/Mojolicious) app.
 
 The order of the arguments, except of the first one, does not matter:
@@ -258,7 +258,7 @@ unless (eval { $api->doSomething(...) }) {
 my $error = $api->parse_error ($message);
 ```
 
-When sandboxing calls to [WWW::Telegram::BotAPI](https://metacpan.org/pod/WWW::Telegram::BotAPI) methods using `eval`, it is useful to parse
+When sandboxing calls to [WWW::Telegram::BotAPI](https://metacpan.org/pod/WWW%3A%3ATelegram%3A%3ABotAPI) methods using `eval`, it is useful to parse
 error messages using this method.
 
 **WARNING:** up until version 0.09, this method incorrectly stopped at the first occurence of `at`
@@ -295,11 +295,38 @@ my $user_agent = $api->agent;
 ```
 
 Returns the instance of the user-agent used by the module. You can determine if the module is using
-[LWP::UserAgent](https://metacpan.org/pod/LWP::UserAgent) or [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent) by using `isa`:
+[LWP::UserAgent](https://metacpan.org/pod/LWP%3A%3AUserAgent) or [Mojo::UserAgent](https://metacpan.org/pod/Mojo%3A%3AUserAgent) by using `isa`:
 
 ```perl
 my $is_lwp = $user_agent->isa ('LWP::UserAgent');
 ```
+
+### Using a proxy
+
+Since all the painful networking stuff is delegated to one of the two supported user agents
+(either [LWP::UserAgent](https://metacpan.org/pod/LWP%3A%3AUserAgent) or [Mojo::UserAgent](https://metacpan.org/pod/Mojo%3A%3AUserAgent)), you can use their built-in support for proxies
+by accessing the user agent object. An example of how this may look like is the following:
+
+```perl
+my $user_agent = $api->agent;
+if ($user_agent->isa ('LWP::UserAgent')) {
+  # Use LWP::Protocol::connect (for https)
+  $user_agent->proxy ('https', '...');
+  # Or if you prefer, load proxy settings from the environment.
+  # $user_agent->env_proxy;
+} else {
+  # Mojo::UserAgent (builtin)
+  $user_agent->proxy->https ('...');
+  # Or if you prefer, load proxy settings from the environment.
+  # $user_agent->detect;
+}
+```
+
+**NOTE:** Unfortunately, [Mojo::UserAgent](https://metacpan.org/pod/Mojo%3A%3AUserAgent) returns an opaque `Proxy connection failed` when
+something goes wrong with the `CONNECT` request made to the proxy. To alleviate this, since
+version 0.12, this module prints the real reason of failure in debug mode. See ["DEBUGGING"](#debugging).
+If you need to access the real error reason in your code, please see
+[issue #29 on GitHub](https://github.com/Robertof/perl-www-telegram-botapi/issues/29).
 
 # Debugging
 
@@ -314,10 +341,12 @@ This dumps the content of each request and response in a friendly, human-readabl
 It also prints the version and the configuration of the module. As a security measure, the bot's
 token is automatically removed from the output of the dump.
 
+Since version 0.12, enabling this flag also gives more details when a proxy connection fails.
+
 **WARNING:** using this option along with an old Mojolicious version (< 6.22) leads to a warning,
-and forces [LWP::UserAgent](https://metacpan.org/pod/LWP::UserAgent) instead of [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent). This is because [Mojo::JSON](https://metacpan.org/pod/Mojo::JSON)
+and forces [LWP::UserAgent](https://metacpan.org/pod/LWP%3A%3AUserAgent) instead of [Mojo::UserAgent](https://metacpan.org/pod/Mojo%3A%3AUserAgent). This is because [Mojo::JSON](https://metacpan.org/pod/Mojo%3A%3AJSON)
 used incompatible boolean values up to version 6.21, which led to an horrible death of
-[JSON::MaybeXS](https://metacpan.org/pod/JSON::MaybeXS) when serializing the data.
+[JSON::MaybeXS](https://metacpan.org/pod/JSON%3A%3AMaybeXS) when serializing the data.
 
 # Caveats
 
@@ -326,7 +355,7 @@ yourself as shown in the ["SYNOPSIS"](#synopsis).
 
 # See also
 
-[LWP::UserAgent](https://metacpan.org/pod/LWP::UserAgent), [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent),
+[LWP::UserAgent](https://metacpan.org/pod/LWP%3A%3AUserAgent), [Mojo::UserAgent](https://metacpan.org/pod/Mojo%3A%3AUserAgent),
 [https://core.telegram.org/bots/api](https://core.telegram.org/bots/api), [https://core.telegram.org/bots](https://core.telegram.org/bots),
 [example implementation of a Telegram bot](https://git.io/vlOK0),
 [example implementation of an async Telegram bot](https://git.io/vDrwL)

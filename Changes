@@ -1,3 +1,8 @@
+0.12 2020-01-09
+  - Fix a crash in debug mode when trying to dump undefined values.
+  - When using `Mojo::UserAgent` and in debug mode, print out the real reason of failure when a
+    connection fails due to a proxy error. Before, only an opaque "Proxy connection error" would
+    have been returned. See issue #29.
 0.11 2019-01-07
   - Replace deprecated calls to Mojo::Transaction::success with Mojo::Transaction::error.
     See issue #28. Thanks @huckeduster!
