@@ -23,7 +23,7 @@ sub _ddump
 {
     my ($varname, $to_dump) = splice @_, -2;
     _dprintf @_ if @_;
-    printf "%s = %s", $varname, $json->encode ($to_dump);
+    printf "%s = %s", $varname, defined $to_dump ? $json->encode ($to_dump) : "undefined\n";
 }
 
 # %settings = (
