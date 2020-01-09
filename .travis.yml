@@ -1,4 +1,5 @@
 language: perl
+dist: trusty
 perl:
   - "5.20"
   - "5.18"
